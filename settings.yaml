@@ -1,0 +1,67 @@
+# Pin Studio settings for MoneySavvyUK. Edit freely; no code changes needed.
+brand:
+  name: MoneySavvyUK
+  site: moneysavvyuk.com
+  colours:
+    cream: "#FBF6EE"
+    teal: "#0E4D5C"
+    deep: "#0A3540"
+    coral: "#E36F4F"
+    gold: "#F2B544"
+    ink: "#1D2B30"
+    muted: "#51636A"
+    green: "#2E8B57"
+    red: "#D64545"
+    white: "#FFFFFF"
+    line: "#E4DCCF"
+    circle: "#135F70"
+  cta: "Read the full guide"
+  product_cta: "Get the printable"
+
+# Board names must match your Pinterest boards EXACTLY (case-sensitive). Edit this list.
+boards:
+  - Save Money UK
+  - Make Money UK & Side Hustles
+  - Vinted & Reselling Tips UK
+  - Budgeting & Money Planners
+  - UK Tax & Money Basics
+  - Printable Budget Planners
+
+pins_per_post: 15
+
+schedule:
+  timezone: Europe/London
+  pins_per_day: 10
+  day_start: "08:00"
+  day_end: "21:00"
+  max_per_link_per_day: 3
+  horizon_days: 14          # Pinterest only accepts publish dates about 14 days ahead
+
+wordpress:
+  base_url: https://moneysavvyuk.com
+  # Images you upload in a given month land in /wp-content/uploads/YYYY/MM/
+  uploads_path: /wp-content/uploads
+
+pinterest_csv:
+  # Column names for Pinterest's bulk upload. If Pinterest's downloaded template differs, change them here.
+  columns: ["Title", "Media URL", "Pinterest board", "Thumbnail", "Description", "Link", "Publish date", "Keywords"]
+  date_format: "%Y-%m-%dT%H:%M:%S"   # written in UTC
+  max_rows: 100
+
+seo:
+  title_max: 100
+  keyword_within_first: 40
+  description_min: 100
+  description_max: 300
+  alt_max: 500
+  allow_hashtags: false
+
+llm:
+  mode: openai                # openai | mock (mock = offline, no key, simpler copy)
+  model: gpt-4o-mini
+  base_url: https://api.openai.com/v1
+  temperature: 0.7
+  timeout_s: 60
+  # USD per million tokens, for the cost estimate shown in the app. Check OpenAI's current prices.
+  price_in: 0.15
+  price_out: 0.60
