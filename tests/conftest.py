@@ -16,6 +16,8 @@ from pinstudio.fetch import parse_html  # noqa: E402
 def settings():
     s = load_settings()
     s["llm"]["mode"] = "mock"
+    # Fixed boards so tests don't depend on the real Pinterest account's board names
+    s["boards"] = ["Save Money UK", "Make Money UK & Side Hustles", "Vinted & Reselling Tips UK", "Budgeting & Money Planners"]
     return s
 
 

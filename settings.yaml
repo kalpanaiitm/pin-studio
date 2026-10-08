@@ -18,14 +18,27 @@ brand:
   cta: "Read the full guide"
   product_cta: "Get the printable"
 
-# Board names must match your Pinterest boards EXACTLY (case-sensitive). Edit this list.
+# Your own MoneySavvyUK boards, copied exactly from Pinterest (case and punctuation matter:
+# a misspelt name makes Pinterest CREATE a new board). Add or remove names freely.
 boards:
-  - Save Money UK
-  - Make Money UK & Side Hustles
-  - Vinted & Reselling Tips UK
-  - Budgeting & Money Planners
-  - UK Tax & Money Basics
-  - Printable Budget Planners
+  - Money Saving Tips|
+  - Make Money Online |
+  - Debt free Life
+  - Financial freedom
+  - How to make a budget
+  - Free budget printables
+  - Save money on groceries
+  - budget meal planning
+  - Declutter ideas
+  - Work from home jobs for moms
+  - Investing money for beginners
+  - Save money for house deposit
+  - Save money for baby
+  - Money Savvy UK
+  - www.moneysavvyuk.com
+# Group boards you belong to (not used automatically; check each board's rules before adding to the list above):
+#   A+ Financial Motivation · Personal Finance Hub · Budget Tips · Saving Money · Make Money From Home
+#   Money Management Tips · Personal Financial Freedom · Frugal money saving budgeting tips
 
 pins_per_post: 15
 
@@ -46,7 +59,7 @@ pinterest_csv:
   # Column names for Pinterest's bulk upload. If Pinterest's downloaded template differs, change them here.
   columns: ["Title", "Media URL", "Pinterest board", "Thumbnail", "Description", "Link", "Publish date", "Keywords"]
   date_format: "%Y-%m-%dT%H:%M:%S"   # written in UTC
-  max_rows: 100
+  max_rows: 100              # Pinterest allows up to 200 per upload; smaller files are easier to fix
 
 seo:
   title_max: 100
