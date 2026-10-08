@@ -6,7 +6,8 @@ from datetime import date, datetime
 
 import streamlit as st
 
-from pinstudio.config import load_settings, paths
+from pinstudio.batch import build_for_url, capacity, schedule_and_export
+from pinstudio.config import load_settings, paths, save_prefs
 from pinstudio.export import export_batch, read_history
 from pinstudio.fetch import fetch_page
 from pinstudio.generate import make_pins, recheck, regenerate_one, suggest_keywords
@@ -39,7 +40,16 @@ with st.sidebar:
     if upcoming:
         st.caption(f"Last scheduled: {max(h['publish_local'] for h in upcoming)[:16].replace('T', ' ')}")
     st.divider()
-    st.caption("Boards, colours, posting hours and pins per day are in **settings.yaml**.")
+    ppd = st.number_input("Pins per day", min_value=5, max_value=25, value=int(S["schedule"]["pins_per_day"]), step=1,
+                          help="Spread between your posting hours, max 3 per post per day.")
+    if ppd != S["schedule"]["pins_per_day"]:
+        save_prefs(pins_per_day=int(ppd))
+        S["schedule"]["pins_per_day"] = int(ppd)
+    st.caption(f"Pinterest schedules up to {S['schedule']['horizon_days']} days ahead, so up to **{capacity(S)} pins** at a time. "
+               f"Reaching {ppd} a day needs pins from at least {-(-ppd // S['schedule']['max_per_link_per_day'])} different posts.")
+    mode = st.radio("Mode", ["One post (review each pin)", "Several posts at once"], key="mode")
+    st.divider()
+    st.caption("Boards, colours and posting hours are in **settings.yaml**.")
     if st.button("Start a new post"):
         for k in ("page", "kw", "pins", "export"):
             ss.pop(k, None)
@@ -49,6 +59,74 @@ with st.sidebar:
 def show_error(error):
     st.error(f"{error}")
 
+
+def show_export(exp, month):
+    if exp["done"]:
+        st.success(f"{len(exp['done'])} pins scheduled from {exp['done'][0]['publish_local'][:10]} to {exp['done'][-1]['publish_local'][:10]}.")
+    else:
+        st.error(f"Nothing could be scheduled in the next {S['schedule']['horizon_days']} days: the schedule is already full.")
+    if exp["left"]:
+        st.warning(f"{exp['left']} pin(s) didn't fit in Pinterest's {S['schedule']['horizon_days']}-day window. Make them in a later batch.")
+    if not exp["done"]:
+        return
+    with open(exp["zip"], "rb") as fh:
+        st.download_button("⬇️ Download pins + Pinterest CSV (zip)", fh, file_name=exp["zip"].replace("\\", "/").split("/")[-1])
+    st.dataframe([{"When (UK)": p["publish_local"][:16].replace("T", " "), "Title": p["title"], "Board": p["board"]}
+                  for p in exp["done"]], use_container_width=True, hide_index=True)
+    first = exp["done"][0]["filename"]
+    st.markdown(f"""**Next steps**
+1. In WordPress go to **Media → Add New** and upload all the PNG files from the zip. **Don't rename them.**
+2. Open one image link to check it works, e.g. `{S['wordpress']['base_url']}{S['wordpress']['uploads_path']}/{month}/{first}.png`
+3. On Pinterest go to **Settings → Create Pins in bulk** and upload **pinterest_bulk_upload.csv** the **same day** (dates must be in the future).
+4. Check **Scheduled Pins** on your profile after a couple of hours. Files are also saved in `{exp['folder']}`.""")
+
+
+# ================================================================ bulk mode
+if mode == "Several posts at once":
+    st.title("Pins for several posts at once")
+    st.caption("Paste blog post or Payhip links, one per line. Each gets keywords and pins automatically (no review step), "
+               "then everything is scheduled together and mixed so no post dominates a day.")
+    urls_text = st.text_area("Links", height=180, placeholder="https://moneysavvyuk.com/how-to-sell-on-vinted-uk/\nhttps://payhip.com/b/l09hx")
+    urls = list(dict.fromkeys(u.strip() for u in urls_text.splitlines() if u.strip().startswith("http")))
+    per_post = st.slider("Pins per post", 5, 20, int(S["pins_per_post"]))
+    total = len(urls) * per_post
+    if urls:
+        st.caption(f"{len(urls)} link(s) × {per_post} = **{total} pins** ≈ {total / S['schedule']['pins_per_day']:.1f} days at "
+                   f"{S['schedule']['pins_per_day']} a day · estimated AI cost about ${0.0015 * len(urls):.3f}")
+        if total > capacity(S):
+            st.warning(f"That's more than fits in {S['schedule']['horizon_days']} days ({capacity(S)} pins). Extra pins will be left for a later batch.")
+    if st.button("Make pins for all", type="primary", disabled=not (urls and llm.ready)):
+        results, all_pins = [], []
+        progress = st.progress(0.0)
+        titles = [h["title"] for h in history]
+        for i, url in enumerate(urls, 1):
+            try:
+                page, kw, pins = build_for_url(url, S, llm, titles + [p["title"] for p in all_pins], per_post)
+                errs = sum(1 for p in pins for x in p["issues"] if x["level"] == "error")
+                results.append({"Post": page.title[:70], "Keyword": kw["main_keyword"], "Pins": len(pins), "To check": errs, "Status": "ok"})
+                all_pins += [{**p, "_url_issues": errs} for p in pins]
+            except Exception as e:
+                results.append({"Post": url, "Keyword": "", "Pins": 0, "To check": 0, "Status": f"failed: {e}"})
+            progress.progress(i / len(urls))
+        ss.bulk = {"results": results, "pins": all_pins}
+        ss.pop("bulk_export", None)
+    bulk = ss.get("bulk")
+    if bulk:
+        st.dataframe(bulk["results"], use_container_width=True, hide_index=True)
+        flagged = [p for p in bulk["pins"] if any(x["level"] == "error" for x in p["issues"])]
+        if flagged:
+            with st.expander(f"🔴 {len(flagged)} pin(s) flagged; they will be left out unless you include them"):
+                for p in flagged:
+                    st.write(f"**{p['title']}**: " + "; ".join(x["msg"] for x in p["issues"] if x["level"] == "error"))
+        include_flagged = st.checkbox("Include flagged pins anyway", value=False) if flagged else False
+        chosen = [p for p in bulk["pins"] if include_flagged or p not in flagged]
+        month_b = st.text_input("WordPress upload month", date.today().strftime("%Y/%m"), key="bulk_month")
+        if st.button(f"Schedule & create upload files for {len(chosen)} pins", type="primary", disabled=not chosen):
+            with st.spinner("Designing full-size pins and scheduling…"):
+                ss.bulk_export = schedule_and_export(chosen, S, P, history, month_b, f"bulk-{len(urls)}-posts")
+        if ss.get("bulk_export"):
+            show_export(ss.bulk_export, month_b)
+    st.stop()
 
 # ---------------------------------------------------------------- step 1: page
 st.title("Turn a post into 15 Pinterest pins")
@@ -172,25 +250,9 @@ if errors:
 force = st.checkbox("Export anyway", value=False) if errors else True
 if st.button("Schedule & create upload files", type="primary", disabled=not force):
     with st.spinner("Designing full-size pins and scheduling…"):
-        batch = [dict(p) for p in pins]
-        done, left = plan(batch, S, history=history, today=today)
-        images = [render_pin(p, S["brand"], image=photo if p["layout"] == "photo" else None, cta=cta) for p in done]
-        slug = done[0]["filename"].split("-")[:4] if done else ["batch"]
-        folder, zip_path, csvs = export_batch(done, images, S, P["output"], P["history"], month, "-".join(slug))
-        ss.export = {"zip": str(zip_path), "folder": str(folder), "done": done, "left": len(left)}
+        batch = [{**p, "_kind": page.kind, "_image_url": page.image_url if page.kind == "product" else ""} for p in pins]
+        name = "-".join(pins[0]["filename"].split("-")[:4]) if pins else "batch"
+        ss.export = schedule_and_export(batch, S, P, history, month, name, today=today)
 
-exp = ss.get("export")
-if exp:
-    st.success(f"{len(exp['done'])} pins scheduled from {exp['done'][0]['publish_local'][:10]} to {exp['done'][-1]['publish_local'][:10]}."
-               if exp["done"] else "Nothing could be scheduled in the next 14 days.")
-    if exp["left"]:
-        st.warning(f"{exp['left']} pin(s) didn't fit in Pinterest's 14-day window. Make them in a later batch.")
-    with open(exp["zip"], "rb") as fh:
-        st.download_button("⬇️ Download pins + Pinterest CSV (zip)", fh, file_name=exp["zip"].split("/")[-1].split("\\")[-1])
-    st.dataframe([{"When (UK)": p["publish_local"][:16].replace("T", " "), "Title": p["title"], "Board": p["board"]}
-                  for p in exp["done"]], use_container_width=True, hide_index=True)
-    st.markdown(f"""**Next steps**
-1. In WordPress go to **Media → Add New** and upload all the PNG files from the zip. **Don't rename them.**
-2. Open one image link to check it works, e.g. `{S['wordpress']['base_url']}{S['wordpress']['uploads_path']}/{month}/{exp['done'][0]['filename'] if exp['done'] else 'file'}.png`
-3. On Pinterest, open the bulk-create option in the Pin builder and upload **pinterest_bulk_upload.csv**, ideally the **same day** (dates must be in the future).
-4. Files are also saved in `{exp['folder']}`.""")
+if ss.get("export"):
+    show_export(ss.export, month)

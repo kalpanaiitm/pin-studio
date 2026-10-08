@@ -70,3 +70,29 @@ def test_one_posts_pins_are_spread_through_the_day(settings):
     done, _ = plan(make("a", 3), settings, today=date(2026, 10, 7))
     hours = sorted(datetime.fromisoformat(p["publish_local"]).hour for p in done)
     assert hours[0] == 8 and hours[-1] >= 15        # not all crammed into the morning
+
+
+def test_twenty_a_day_needs_seven_posts(settings):
+    settings["schedule"]["pins_per_day"] = 20
+    pins = [p for i in range(7) for p in make(f"post{i}", 15)]
+    done, left = plan(pins, settings, today=date(2026, 10, 7))
+    first_day = [p for p in done if p["publish_local"].startswith("2026-10-08")]
+    assert len(first_day) == 20 and all(sum(1 for p in first_day if p["link"] == f"post{i}") <= 3 for i in range(7))
+
+
+def test_bulk_pipeline_two_posts(settings, page, product, monkeypatch, tmp_path):
+    from pinstudio import batch
+    from pinstudio.llm import LLM
+    pages = {page.url: page, product.url: product}
+    monkeypatch.setattr(batch, "fetch_page", lambda url: pages[url])
+    monkeypatch.setattr(batch, "load_image", lambda url: None)
+    llm = LLM(settings)
+    pins = []
+    for url in pages:
+        _, _, made = batch.build_for_url(url, settings, llm, [p["title"] for p in pins], 8)
+        pins += made
+    paths_ = {"output": tmp_path, "history": tmp_path / "h.csv"}
+    exp = batch.schedule_and_export(pins, settings, paths_, [], "2026/10", "bulk", today=date(2026, 10, 7))
+    assert len(exp["done"]) == 16 and exp["left"] == 0
+    day1 = [p for p in exp["done"] if p["publish_local"].startswith("2026-10-08")]
+    assert {p["link"] for p in day1} == set(pages)          # both posts appear on day one

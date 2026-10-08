@@ -44,7 +44,7 @@ pins_per_post: 15
 
 schedule:
   timezone: Europe/London
-  pins_per_day: 10
+  pins_per_day: 15          # 10-25; you can also change this in the app sidebar
   day_start: "08:00"
   day_end: "21:00"
   max_per_link_per_day: 3
