@@ -65,6 +65,9 @@ def show_export(exp, month):
         st.success(f"{len(exp['done'])} pins scheduled from {exp['done'][0]['publish_local'][:10]} to {exp['done'][-1]['publish_local'][:10]}.")
     else:
         st.error(f"Nothing could be scheduled in the next {S['schedule']['horizon_days']} days: the schedule is already full.")
+    if exp.get("blocked_duplicates"):
+        st.warning(f"Left out {len(exp['blocked_duplicates'])} pin(s) whose image was already scheduled before: "
+                   + "; ".join(exp["blocked_duplicates"][:5]))
     if exp["left"]:
         st.warning(f"{exp['left']} pin(s) didn't fit in Pinterest's {S['schedule']['horizon_days']}-day window. Make them in a later batch.")
     if not exp["done"]:

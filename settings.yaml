@@ -49,6 +49,7 @@ schedule:
   day_end: "21:00"
   max_per_link_per_day: 3
   horizon_days: 14          # Pinterest only accepts publish dates about 14 days ahead
+  min_gap_hours_same_post: 2   # pins for the same post on the same day are at least this far apart
 
 wordpress:
   base_url: https://moneysavvyuk.com
@@ -68,6 +69,7 @@ seo:
   description_max: 300
   alt_max: 500
   allow_hashtags: false
+  near_duplicate: 0.85       # titles this similar (0-1) to any earlier title are blocked
 
 llm:
   mode: openai                # openai | mock (mock = offline, no key, simpler copy)

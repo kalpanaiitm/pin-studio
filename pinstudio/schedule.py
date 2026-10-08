@@ -52,22 +52,30 @@ def plan(pins, settings, history=(), today: date = None, start: date = None):
     start = max(start or today + timedelta(days=1), today + timedelta(days=1))
     used = defaultdict(set)
     per_link = defaultdict(int)
+    link_times = defaultdict(list)            # (day, link) -> datetimes already booked
+    gap = timedelta(hours=cfg.get("min_gap_hours_same_post", 0))
     for h in history:
         if h.get("publish_local"):
             t = datetime.fromisoformat(h["publish_local"])
             used[t.date()].add(t.strftime("%H:%M"))
             per_link[(t.date(), h["link"])] += 1
+            link_times[(t.date(), h["link"])].append(t)
+
+    def spaced(day, link, slot):
+        return all(abs(slot - t) >= gap for t in link_times[(day, link)])
     queue = interleave(pins)
     scheduled, day = [], start
     while queue and day <= horizon:
         slots = daily_slots(day, cfg["pins_per_day"], cfg["day_start"], cfg["day_end"], tz)
         free = [slots[i] for i in spread_order(len(slots)) if slots[i].strftime("%H:%M") not in used[day]]
         for slot in free:
-            pick = next((p for p in queue if per_link[(day, p["link"])] < cfg["max_per_link_per_day"]), None)
+            pick = next((p for p in queue if per_link[(day, p["link"])] < cfg["max_per_link_per_day"]
+                         and spaced(day, p["link"], slot)), None)
             if pick is None:
-                break
+                continue
             queue.remove(pick)
             per_link[(day, pick["link"])] += 1
+            link_times[(day, pick["link"])].append(slot)
             used[day].add(slot.strftime("%H:%M"))
             pick["publish_local"] = slot.isoformat()
             pick["publish_utc"] = slot.astimezone(timezone.utc).strftime(settings["pinterest_csv"]["date_format"])

@@ -53,3 +53,11 @@ def test_list_counts_are_not_flagged_but_other_numbers_are(page, settings):
     assert not any("number" in m for m in msgs(pin, page, settings))
     pin["headline"] = "11 Vinted Mistakes Beginners Make"
     assert any("11" in m for m in msgs(pin, page, settings))
+
+
+def test_near_duplicate_titles_blocked(page, settings):
+    out = msgs({**BASE, "title": "How to Sell on Vinted in the UK: Beginners Guide"}, page, settings,
+               {"how to sell on vinted uk: beginner's guide"})
+    assert any("almost the same" in m for m in out)
+    assert not any("almost the same" in m for m in msgs({**BASE, "title": "6 Vinted Mistakes Beginners Make"}, page, settings,
+                                                         {"how to sell on vinted uk: beginner's guide"}))

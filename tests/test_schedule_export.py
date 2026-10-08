@@ -96,3 +96,23 @@ def test_bulk_pipeline_two_posts(settings, page, product, monkeypatch, tmp_path)
     assert len(exp["done"]) == 16 and exp["left"] == 0
     day1 = [p for p in exp["done"] if p["publish_local"].startswith("2026-10-08")]
     assert {p["link"] for p in day1} == set(pages)          # both posts appear on day one
+
+
+def test_same_post_pins_are_spaced_two_hours(settings):
+    settings["schedule"]["pins_per_day"] = 25
+    done, _ = plan(make("a", 3), settings, today=date(2026, 10, 7))
+    times = sorted(datetime.fromisoformat(p["publish_local"]) for p in done if p["publish_local"].startswith("2026-10-08"))
+    assert all((b - a).total_seconds() >= 2 * 3600 for a, b in zip(times, times[1:]))
+
+
+def test_identical_image_is_never_scheduled_twice(settings, tmp_path):
+    from pinstudio import batch
+    pin = {"layout": "hero", "kicker": "GUIDE", "headline": "Same picture", "sub": "x", "items": [], "title": "First title",
+           "description": "d", "alt": "a", "board": "b", "filename": "one", "keywords": [], "link": "https://x/a"}
+    paths_ = {"output": tmp_path, "history": tmp_path / "h.csv"}
+    first = batch.schedule_and_export([pin], settings, paths_, [], "2026/10", "b1", today=date(2026, 10, 7))
+    from pinstudio.export import read_history
+    again = {**pin, "title": "A completely different title", "filename": "two"}
+    second = batch.schedule_and_export([again], settings, paths_, read_history(tmp_path / "h.csv"), "2026/10", "b2",
+                                       today=date(2026, 10, 7))
+    assert len(first["done"]) == 1 and second["done"] == [] and second["blocked_duplicates"] == ["A completely different title"]

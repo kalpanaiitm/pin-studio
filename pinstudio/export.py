@@ -4,7 +4,13 @@ import zipfile
 from datetime import datetime
 from pathlib import Path
 
-HISTORY_FIELDS = ["created", "batch", "link", "title", "filename", "board", "publish_local", "publish_utc"]
+HISTORY_FIELDS = ["created", "batch", "link", "title", "filename", "board", "publish_local", "publish_utc", "image_hash"]
+
+
+def image_hash(img) -> str:
+    """Fingerprint of the finished pin image (same picture = same hash, whatever the file name)."""
+    import hashlib
+    return hashlib.sha256(img.convert("RGB").resize((200, 300)).tobytes()).hexdigest()[:16]
 
 
 def media_url(settings, filename: str, upload_month: str) -> str:
@@ -66,5 +72,6 @@ def export_batch(pins, images, settings, out_root: Path, history_path: Path, upl
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
         for f in sorted(folder.iterdir()):
             z.write(f, f"{folder.name}/{f.name}")
-    append_history(history_path, [{**p, "created": stamp, "batch": batch_name} for p in pins])
+    append_history(history_path, [{**p, "created": stamp, "batch": batch_name, "image_hash": image_hash(img)}
+                                  for p, img in zip(pins, images)])
     return folder, zip_path, csv_files

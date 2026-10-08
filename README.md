@@ -15,9 +15,10 @@ Built by Dr Kalpana Govindarasan for [MoneySavvyUK](https://moneysavvyuk.com), a
    - keyword text on the image, keyword file names, alt text, a board for each pin
 4. **Checks every pin** before you publish:
    - **Fact guard:** flags any number, £ amount or percentage that isn't in your post. Personal-finance content must not invent figures.
-   - title and description lengths, keyword placement, duplicate titles across all past batches, board names, design limits
+   - title and description lengths, keyword placement, board names, design limits
+   - **no repeats:** exact and near-duplicate titles (85%+ similar) across all past batches are blocked, and an image fingerprint stops the same picture being scheduled twice, even under a new file name
 5. **Designs the pins** at 1000 × 1500 in your brand colours (Pillow, no AI image costs).
-6. **Schedules and exports:** 15 pins a day by default (5–25, set in the sidebar) between 08:00 and 21:00 UK time, at most 3 per post per day, mixed with earlier batches, within Pinterest's 14-day window. You get a zip with the PNGs, a **Pinterest bulk-upload CSV** (image links point to your WordPress uploads folder) and a copy file.
+6. **Schedules and exports:** 15 pins a day by default (5–25, set in the sidebar) between 08:00 and 21:00 UK time, at most 3 per post per day and at least 2 hours apart, mixed with earlier batches, within Pinterest's 14-day window. You get a zip with the PNGs, a **Pinterest bulk-upload CSV** (image links point to your WordPress uploads folder) and a copy file.
 
 ## Two modes
 - **One post:** review keywords and every pin, edit text, replace any pin, then export.
@@ -54,7 +55,7 @@ Two API calls per post (keywords, then pins): roughly 6–8k input and 3–4k ou
 ## How it's built
 `pinstudio/fetch.py` (page reader) · `prompts.py` (Pinterest SEO and accuracy rules) · `llm.py` (OpenAI over HTTPS, JSON mode, retries, cost meter) · `mock.py` (offline generator) · `validate.py` (checks and fact guard) · `render.py` (7 layouts) · `schedule.py` · `export.py` · `app.py` (Streamlit) · `cli.py`
 
-**Tests:** `python -m pytest -q` (23 tests, including an end-to-end run against a simulated OpenAI reply, the fact guard, scheduling across BST and the CSV format).
+**Tests:** `python -m pytest -q` (26 tests, including an end-to-end run against a simulated OpenAI reply, the fact guard, scheduling across BST and the CSV format).
 
 ## Licence
 Code: MIT. Fonts: Inter, SIL Open Font Licence (`assets/fonts/LICENSE-Inter.txt`).

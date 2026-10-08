@@ -1,5 +1,6 @@
 """Quality checks for every pin: Pinterest limits, SEO placement, design limits and a fact guard."""
 import re
+from difflib import SequenceMatcher
 
 LIMITS = {"checklist": (4, 8), "mistakes": (3, 6), "steps": (3, 6), "flow": (3, 4)}
 NUMBER = re.compile(r"[£$€]\s?\d[\d,]*(?:\.\d+)?|\d+(?:[.,]\d+)?\s?%|\b\d[\d,]*(?:\.\d+)?\b")
@@ -22,6 +23,20 @@ def keyword_early(title: str, keyword: str, within: int) -> bool:
     words = keyword_words(keyword)
     hits = sum(1 for w in words if re.search(rf"\b{re.escape(w)}", head))
     return hits >= max(1, round(len(words) * 0.6))
+
+
+def _norm_title(t: str) -> str:
+    return " ".join(re.findall(r"[a-z0-9£%]+", t.lower()))
+
+
+def similar_title(title: str, others, threshold: float = 0.85):
+    """Return the first existing title that is nearly the same (ignoring case and punctuation)."""
+    a = _norm_title(title)
+    for other in others:
+        b = _norm_title(other)
+        if a and b and a != b and SequenceMatcher(None, a, b).ratio() >= threshold:
+            return other
+    return None
 
 
 def numbers_in(text: str):
@@ -57,6 +72,10 @@ def check_pin(pin: dict, source_text: str, main_keyword: str, settings: dict, bo
         add("warn", f"main keyword not in the first {seo['keyword_within_first']} characters of the title")
     if title.lower() in seen_titles:
         add("error", "duplicate title (already used in this batch or a previous one)")
+    else:
+        close = similar_title(title, seen_titles, settings["seo"].get("near_duplicate", 0.85))
+        if close:
+            add("error", f"almost the same as an existing title: '{close}'. Change the angle or wording.")
     desc = pin.get("description", "")
     if not seo["description_min"] <= len(desc) <= seo["description_max"]:
         add("warn", f"description is {len(desc)} characters (aim for {seo['description_min']}-{seo['description_max']})")
