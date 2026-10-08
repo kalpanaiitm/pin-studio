@@ -99,14 +99,23 @@ def check_pin(pin: dict, source_text: str, main_keyword: str, settings: dict, bo
 
 def normalise(pin: dict, settings: dict, used_files: set) -> dict:
     """Tidy fields without changing meaning."""
-    p = {k: (v.strip() if isinstance(v, str) else v) for k, v in pin.items()}
+    p = {k: (v.strip() if isinstance(v, str) else v) for k, v in (pin or {}).items()}
+    # The AI sometimes leaves a field out; fill it so the app never crashes.
+    for key in ("title", "headline", "description", "alt", "board", "layout", "kicker", "sub"):
+        if not isinstance(p.get(key), str):
+            p[key] = "" if p.get(key) is None else str(p[key])
+    p["title"] = p["title"] or p["headline"]
+    p["headline"] = p["headline"] or p["title"]
+    p["alt"] = p["alt"] or p["headline"]
+    if p["layout"] not in ("hero", "checklist", "mistakes", "steps", "statement", "flow", "photo"):
+        p["layout"] = "hero"
     p["kicker"] = (p.get("kicker") or "").upper()
-    p["items"] = [i.strip() for i in (p.get("items") or []) if i and i.strip()]
+    p["items"] = [str(i).strip() for i in (p.get("items") or []) if i and str(i).strip()]
     p["sub"] = p.get("sub") or ""
     p["keywords"] = [k.strip().lower() for k in (p.get("keywords") or []) if k.strip()][:5]
     if not settings["seo"].get("allow_hashtags"):
         p["description"] = re.sub(r"\s*#\w+", "", p.get("description", "")).strip()
-    base = slugify(p.get("filename") or p.get("title", ""))
+    base = slugify(p.get("filename") or p.get("title", "")) or "pin"
     name, n = base, 2
     while name in used_files:
         name, n = f"{base}-{n}", n + 1

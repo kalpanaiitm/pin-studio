@@ -22,7 +22,13 @@ def make_pins(page, kw: dict, settings, llm: LLM, n: int = None) -> list:
         raw = mock.pins(page, kw, settings["boards"], n)
     else:
         system = prompts.pins_system(settings, n, page.kind, bool(page.image_url))
-        raw = llm.json(system, prompts.pins_user(page, kw, settings["boards"])).get("pins", [])[:n]
+        raw = _ask(llm, system, prompts.pins_user(page, kw, settings["boards"]))[:n]
+        if len(raw) < n:   # the AI sometimes returns fewer pins than asked; ask once more for the rest
+            more = prompts.pins_system(settings, n - len(raw), page.kind, bool(page.image_url))
+            user = (prompts.pins_user(page, kw, settings["boards"])
+                    + f"\n\nCreate exactly {n - len(raw)} NEW pins. Do not repeat these titles or angles: "
+                    + str([p.get("title", "") for p in raw]))
+            raw += _ask(llm, more, user)[: n - len(raw)]
     return finish(raw, page, kw, settings)
 
 
@@ -34,7 +40,7 @@ def regenerate_one(page, kw, settings, llm, pins, index, layout, feedback="") ->
     else:
         system = prompts.pins_system(settings, 1, page.kind, bool(page.image_url))
         user = prompts.regenerate_user(page, kw, settings["boards"], [p["title"] for p in pins], layout, feedback)
-        new = llm.json(system, user).get("pins", [{}])[0]
+        new = (_ask(llm, system, user) or [{}])[0]
     others = [p for i, p in enumerate(pins) if i != index]
     fixed = finish([new], page, kw, settings, taken=others)[0]
     return pins[:index] + [fixed] + pins[index + 1:]
@@ -60,6 +66,11 @@ def recheck(pins, page, kw, settings, history_titles=()):
         p["issues"] = check_pin(p, page.full_text, kw["main_keyword"], settings, settings["boards"], seen, _sizes(page))
         seen.add(p.get("title", "").lower())
     return pins
+
+
+def _ask(llm, system, user):
+    pins = llm.json(system, user).get("pins") or []
+    return [p for p in pins if isinstance(p, dict)]
 
 
 def _sizes(page):
